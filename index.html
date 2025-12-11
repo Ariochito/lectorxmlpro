@@ -1,0 +1,583 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8">
+  <title>Lector CFDI (Ingreso / Egreso / Pagos)</title>
+  <style>
+    body {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 20px;
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    h2,
+    h3 {
+      margin: 0 0 10px 0;
+      color: #111827;
+    }
+
+    .panel {
+      background: #ffffff;
+      border: 1px solid #e5e7eb;
+      padding: 15px;
+      margin-bottom: 16px;
+      border-radius: 10px;
+      box-shadow: 0 1px 2px rgb(0 0 0 / 0.04);
+    }
+
+    .panel-stack-complementos>.panel+.panel {
+      margin-top: 16px;
+    }
+
+    .panel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 8px;
+    }
+
+    .panel-subtitle {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .drag-area {
+      border: 2px dashed #9ca3af;
+      padding: 20px;
+      text-align: center;
+      border-radius: 10px;
+      margin-top: 10px;
+      background: #f9fafb;
+      cursor: pointer;
+    }
+
+    table {
+      border-collapse: collapse;
+      width: 100%;
+      margin-top: 10px;
+      font-size: 11px;
+    }
+
+    th,
+    td {
+      border: 1px solid #e5e7eb;
+      padding: 4px 6px;
+    }
+
+    th {
+      background: #f3f4f6;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    .badge {
+      font-size: 10px;
+      padding: 2px 4px;
+      border-radius: 999px;
+    }
+
+    .badge-emitido {
+      background: #d1fae5;
+      color: #065f46;
+    }
+
+    .badge-recibido {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .badge-otro {
+      background: #e5e7eb;
+      color: #374151;
+    }
+
+    .stats-line {
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .stats-highlight {
+      font-weight: 600;
+    }
+
+    .progress-container {
+      margin-top: 10px;
+      font-size: 12px;
+      color: #374151;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 8px;
+      background: #e5e7eb;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 4px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: #2563eb;
+      transition: width 0.15s linear;
+    }
+
+    .help-badge {
+      display: inline-block;
+      font-size: 10px;
+      border-radius: 999px;
+      padding: 1px 6px;
+      background: #eff6ff;
+      color: #1d4ed8;
+      border: 1px solid #bfdbfe;
+      cursor: help;
+      margin-left: 4px;
+    }
+
+    .controls-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 8px;
+      font-size: 13px;
+    }
+
+    input[type="text"],
+    select,
+    input[type="date"] {
+      padding: 4px 6px;
+      border-radius: 6px;
+      border: 1px solid #d1d5db;
+      font-size: 13px;
+    }
+
+    button {
+      padding: 6px 10px;
+      border-radius: 6px;
+      border: 1px solid #2563eb;
+      background: #2563eb;
+      color: #ffffff;
+      font-size: 13px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #1d4ed8;
+    }
+
+    .btn-secondary {
+      border-color: #6b7280;
+      background: #6b7280;
+    }
+
+    .btn-secondary:hover {
+      background: #4b5563;
+    }
+
+    .table-wrapper {
+      max-height: 320px;
+      overflow: auto;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+    }
+
+    details summary {
+      cursor: pointer;
+      font-size: 12px;
+      color: #374151;
+      margin-bottom: 4px;
+    }
+
+    .panel-actions {
+      font-size: 12px;
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- PANEL CONFIGURACIÓN Y CARGA -->
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Lector CFDI (Ingreso / Egreso / Pagos)</h2>
+      <div class="panel-subtitle">
+        Enfocado a CFDI tipo I, E y P. Nómina va en su lector aparte.
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div>
+        <label>
+          RFC detectado como “propio”:
+          <input type="text" id="rfcBase" style="width:260px;" placeholder="Se detectará automáticamente">
+        </label>
+        <span class="help-badge"
+          title="Se analiza quién aparece como emisor y receptor. Ese RFC se propone como propio. Puedes corregirlo manualmente.">¿Qué
+          es esto?</span>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div>
+        <label>
+          Ver rol:
+          <select id="filtroRol">
+            <option value="TODOS">Emitidos y recibidos</option>
+            <option value="EMITIDO">Solo emitidos</option>
+            <option value="RECIBIDO">Solo recibidos</option>
+            <option value="OTRO">No coinciden con RFC propio</option>
+          </select>
+        </label>
+      </div>
+
+      <div>
+        <label>
+          Vista:
+          <select id="filtroVista">
+            <option value="GENERAL">General (I, E, P)</option>
+            <option value="IE">Solo Ingresos/Egresos (I, E)</option>
+            <option value="P">Solo Pagos (P)</option>
+          </select>
+        </label>
+        <span class="help-badge"
+          title="General: muestra I, E, P. Ingresos/Egresos: solo I y E. Pagos: solo P.">Ayuda</span>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div>
+        <label>
+          Filtrar por nombre (Emisor/Receptor):
+          <input type="text" id="filtroNombre" placeholder="Parte del nombre">
+        </label>
+      </div>
+      <div>
+        <label>
+          Filtrar por RFC (Emisor/Receptor):
+          <input type="text" id="filtroRfc" placeholder="Parte del RFC">
+        </label>
+      </div>
+    </div>
+
+    <div class="controls-row">
+      <div>
+        <label>
+          Fecha desde:
+          <input type="date" id="fechaDesde">
+        </label>
+      </div>
+      <div>
+        <label>
+          Fecha hasta:
+          <input type="date" id="fechaHasta">
+        </label>
+      </div>
+      <div>
+        <label>
+          Periodo rápido:
+          <select id="filtroPeriodo">
+            <option value="TODOS">Todos los periodos</option>
+          </select>
+        </label>
+        <span class="help-badge" title="Se generan años/mes en base a las fechas de los CFDI cargados.">Info</span>
+      </div>
+    </div>
+
+    <div class="drag-area" id="dropArea">
+      Arrastra aquí tus archivos XML o usa los botones de abajo
+      <br><br>
+      <input type="file" id="fileInput" accept=".xml" multiple style="display:none;">
+      <input type="file" id="folderInput" webkitdirectory multiple style="display:none;">
+
+      <button id="btnSelectFiles">Seleccionar archivos XML</button>
+      <button id="btnSelectFolder" class="btn-secondary">Seleccionar carpeta</button>
+    </div>
+
+    <div id="progressContainer" class="progress-container" style="display:none;">
+      <span id="progressLabel">Procesando 0 de 0 XML...</span>
+      <div class="progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+    </div>
+
+    <div style="margin-top:6px;">
+      <small>
+        Recomendación: carga juntos XML emitidos y recibidos. El sistema detecta el RFC propio y separa por rol.
+      </small>
+    </div>
+  </div>
+
+  <!-- PANEL RESUMEN GLOBAL -->
+  <div class="panel">
+    <h3>Resumen de CFDI (informativo global – excluye Nómina)</h3>
+
+    <div class="stats-line">
+      <span class="stats-highlight">Emitidos:</span>
+      Total: <span id="statsEmitidosTotal">0</span> |
+      I: <span id="statsEmitidosI">0</span> |
+      E: <span id="statsEmitidosE">0</span> |
+      P: <span id="statsEmitidosP">0</span>
+    </div>
+
+    <div class="stats-line">
+      <span class="stats-highlight">Recibidos:</span>
+      Total: <span id="statsRecibidosTotal">0</span> |
+      I: <span id="statsRecibidosI">0</span> |
+      E: <span id="statsRecibidosE">0</span> |
+      P: <span id="statsRecibidosP">0</span>
+    </div>
+
+    <div class="stats-line">
+      <span class="stats-highlight">Global (emitidos + recibidos):</span>
+      Total: <span id="statsGlobalTotal">0</span> |
+      I: <span id="statsGlobalI">0</span> |
+      E: <span id="statsGlobalE">0</span> |
+      P: <span id="statsGlobalP">0</span>
+    </div>
+  </div>
+
+  <!-- PANEL CFDI RESUMEN -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3>CFDI (resumen por XML)</h3>
+      <div class="panel-actions">
+        <span class="panel-subtitle">Una fila por CFDI con la mayoría de campos fiscales relevantes.</span>
+        <button id="btnExportCfdi">Exportar a Excel</button>
+      </div>
+    </div>
+
+    <div style="font-size:12px; margin-bottom:8px;">
+      <details>
+        <summary>Configurar columnas visibles</summary>
+        <div id="columnConfigContainer" style="margin-top:4px;"></div>
+      </details>
+    </div>
+
+    <div class="table-wrapper">
+      <table id="tablaCfdi">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PANEL CONCEPTOS DETALLE -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Conceptos (detalle)</h3>
+      <div class="panel-actions">
+        <span class="panel-subtitle">Una fila por concepto. Respeta los filtros de rol, vista, nombre, RFC y
+          fechas.</span>
+        <button id="btnExportConceptos">Exportar a Excel</button>
+      </div>
+    </div>
+
+    <div class="table-wrapper" style="max-height: 360px;">
+      <table id="tablaConceptos">
+        <thead>
+          <tr>
+            <th>Rol</th>
+            <th>UUID</th>
+            <th>Tipo</th>
+            <th>Fecha</th>
+            <th>ClaveProdServ</th>
+            <th>Descripción</th>
+            <th>Cantidad</th>
+            <th>Unidad</th>
+            <th>ValorUnitario</th>
+            <th>Importe</th>
+            <th>Descuento</th>
+            <th>IVA Tras</th>
+            <th>IVA Ret</th>
+            <th>ISR Ret</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- PANEL COMPLEMENTOS DE PAGO (RESUMEN) -->
+  <div id="pagosDetalleFiltroInfo" style="font-size:12px; margin-bottom:4px;"></div>
+  <div class="table-wrapper" style="max-height: 320px;">
+    <table id="tablaPagosDetalle">
+      <div class="panel">
+        <div class="panel-header">
+          <h3>Complementos de pago – Resumen por CFDI P</h3>
+          <div class="panel-actions">
+            <span class="panel-subtitle">
+              Una fila por CFDI de pago (o por nodo Pago) uniendo UUIDs relacionados y montos.
+            </span>
+            <button id="btnExportPagosResumen">Exportar a Excel</button>
+          </div>
+        </div>
+
+        <div class="table-wrapper" style="max-height: 280px;">
+          <table id="tablaPagosResumen">
+            <thead>
+              <tr>
+                <th>Rol</th>
+                <th>UUID Pago</th>
+                <th>Fecha Emisión CFDI</th>
+                <th>Fecha Pago</th>
+                <th>RFC Emisor</th>
+                <th>Nombre Emisor</th>
+                <th>RFC Receptor</th>
+                <th>Nombre Receptor</th>
+                <th>FormaPagoP</th>
+                <th>MonedaP</th>
+                <th>Monto Pago</th>
+                <th>Núm relaciones</th>
+                <th>UUIDs relacionados</th>
+                <th>Total Saldo Ant</th>
+                <th>Total Pagado</th>
+                <th>Total Saldo Insoluto</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </table>
+  </div>
+
+  <div class="panel-stack-complementos">
+    <!-- PANEL COMPLEMENTOS DE PAGO (DETALLE) -->
+    <div class="panel">
+      <div class="panel-header">
+        <h3>Complementos de pago – Detalle por documento relacionado</h3>
+        <div class="panel-actions">
+          <span class="panel-subtitle">
+            Una fila por cada DoctoRelacionado para poder identificar pagos y errores.
+          </span>
+          <button id="btnLimpiarFiltroPagosDetalle">Quitar filtro</button>
+          <button id="btnExportPagosDetalle">Exportar a Excel</button>
+        </div>
+      </div>
+
+
+      <!-- NUEVO: texto de filtro -->
+      <div id="pagosDetalleFiltroInfo" style="font-size:12px; margin-bottom:4px;"></div>
+
+      <div class="table-wrapper" style="max-height: 320px;">
+        <table id="tablaPagosDetalle">
+          <thead>
+            <tr>
+              <th>Rol</th>
+              <th>UUID complemento (P)</th>
+              <th>Fecha emisión P</th>
+              <th>Fecha pago</th>
+              <th>RFC Emisor</th>
+              <th>Nombre Emisor</th>
+              <th>RFC Receptor</th>
+              <th>Nombre Receptor</th>
+              <th>UUID relacionado</th>
+              <th>Serie DR</th>
+              <th>Folio DR</th>
+              <th>Moneda DR</th>
+              <th>MétodoPagoDR</th>
+              <th>Parcialidad</th>
+              <th>ImpSaldoAnt</th>
+              <th>ImpPagado</th>
+              <th>ImpSaldoInsoluto</th>
+              <th>Monto pago</th>
+              <th>Moneda P</th>
+              <th>FormaPagoP</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- PANEL CFDI PPD (I/E) VS COMPLEMENTOS DE PAGO -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3>CFDI PPD (I/E) vs Complementos de pago</h3>
+      <div class="panel-actions">
+        <span class="panel-subtitle">
+          Solo facturas I/E con método PPD. Haz clic en una fila para ver el detalle de sus pagos.
+        </span>
+        <button id="btnExportPpd">Exportar a Excel</button>
+      </div>
+    </div>
+
+
+    <div id="ppdResumenInfo" style="font-size:12px; margin-bottom:4px;"></div>
+
+    <div class="table-wrapper" style="max-height: 320px;">
+      <table id="tablaPpd">
+        <thead>
+          <tr>
+            <th>Rol</th>
+            <th>UUID factura</th>
+            <th>Fecha</th>
+            <th>RFC Cliente/Proveedor</th>
+            <th>Nombre Cliente/Proveedor</th>
+            <th>Total</th>
+            <th>Método de Pago</th>
+            <th>Forma de Pago</th>
+            <th>Total pagado</th>
+            <th>Saldo actual</th>
+            <th>Estatus</th>
+            <th>Núm complementos</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  </div>
+  <!-- PANEL COMPLEMENTOS DE PAGO SIN CFDI RELACIONADO -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3>Complementos de pago sin CFDI relacionado</h3>
+      <div class="panel-actions">
+        <span class="panel-subtitle">
+          Complementos P cuyo UUID relacionado no coincide con ningún CFDI cargado.
+        </span>
+        <button id="btnExportPagosSinCfdi">Exportar a Excel</button>
+      </div>
+    </div>
+
+    <div id="pagosSinCfdiInfo" style="font-size:12px; margin-bottom:4px;"></div>
+
+    <div class="table-wrapper" style="max-height: 260px;">
+      <table id="tablaPagosSinCfdi">
+        <thead>
+          <tr>
+            <th>Rol</th>
+            <th>UUID complemento (P)</th>
+            <th>Fecha pago</th>
+            <th>RFC Emisor (P)</th>
+            <th>Nombre Emisor (P)</th>
+            <th>RFC Receptor (P)</th>
+            <th>Nombre Receptor (P)</th>
+            <th>UUID relacionado</th>
+            <th>Parcialidad</th>
+            <th>ImpSaldoAnt</th>
+            <th>ImpPagado</th>
+            <th>ImpSaldoInsoluto</th>
+            <th>Monto pago</th>
+            <th>Moneda P</th>
+            <th>FormaPagoP</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  </div>
+  <script src="lector-cfdi.js"></script>
+</body>
+
+</html>
